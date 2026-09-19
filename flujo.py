@@ -10,35 +10,43 @@ class Flujo:
         #contadores de linea y columna
         self.historial = []
         #esta sera la pila para recordar la posicion
-    def newChar(self):
+    def NewChar(self):
         if self.pos >= len(self.texto):
             return  ""
-    #nos permite leer el siguiente caracter del flujo
-    #guardamos la posicion actual
+        # nos permite leer el siguiente caracter del flujo
+        # guardamos la posicion actual
         self.historial.append((self.pos, self.linea, self.columna))
-        caracter =self.texto[self.pos]
+        caracter = self.texto[self.pos]
         self.pos += 1
         if caracter == "\n":
             self.linea += 1
             self.columna = 0
         else:
             self.columna += 1
-        return caracter #caracter leido
+        return caracter # caracter leido
         
-    def returnChar(self):  #nos permitira devolver de nuevo al flujo el utlimo caracter que fue leido
+    newChar = NewChar
+
+    def ReturnChar(self):  # nos permitira devolver de nuevo al flujo el ultimo caracter que fue leido
         if self.historial:
             posicion, linea, columna = self.historial.pop()
             self.pos = posicion
             self.linea = linea
             self.columna = columna
-        return self.texto[posicion]
+            return self.texto[posicion]
+        return ""
+
+    returnChar = ReturnChar
     
-    def getNumLinea(self): #nos devolvera el numero de linea del fichero que se esta leyendo
+    def GetNumLine(self): # nos devolvera el numero de linea del fichero que se esta leyendo
         return self.linea
 
-    def getCharLinea(self): #nos indica que posicion ocupa el ultimo caracter leiod en la linea actual
-    #estos ultimos dos metodos nos indicaran errores mas facilmente 
+    getNumLinea = GetNumLine
+
+    def GetCharInLine(self): # nos indica que posicion ocupa el ultimo caracter leido en la linea actual
         return self.columna
+
+    getCharLinea = GetCharInLine
 
 """if __name__ == "__main__":
     lector = Flujo("entrada.txt")
