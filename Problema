@@ -1,0 +1,42 @@
+class Flujo:
+    def __init__(self, datos_vector):
+        self.datos = datos_vector
+        self.posicion = 0
+        self.linea_actual = 1
+        self.columna_actual = 0
+        self.ultimo_char = ""
+        self.buffer_retorno = None
+
+    def NewChar(self):
+        if self.buffer_retorno is not None:
+            char = self.buffer_retorno
+            self.buffer_retorno = None
+            self.columna_actual += 1
+            return char
+
+        if self.posicion >= len(self.datos):
+            return None
+
+        char = self.datos[self.posicion]
+        self.posicion += 1
+
+        if char == '\n':
+            self.linea_actual += 1
+            self.columna_actual = 0
+        else:
+            self.columna_actual += 1
+
+        self.ultimo_char = char
+        return char
+
+    def ReturnChar(self):
+        if self.ultimo_char:
+            self.buffer_retorno = self.ultimo_char
+            if self.columna_actual > 0:
+                self.columna_actual -= 1
+                
+    def GetNumLine(self):
+        return self.linea_actual
+
+    def GetCharInLine(self):
+        return self.columna_actual
