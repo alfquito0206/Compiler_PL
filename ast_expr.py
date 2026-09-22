@@ -4,10 +4,6 @@ class AST:
         pass
 
     def mostrar(self):
-        # muestra la expresion utilizando parentesis
-        raise NotImplementedError
-
-    def mostrar_sin_parentesis(self):
         # muestra la expresion sin parentesis innecesarios
         raise NotImplementedError
 
@@ -26,9 +22,6 @@ class Numero(AST):
         self.valor = valor
 
     def mostrar(self):
-        return str(self.valor)
-
-    def mostrar_sin_parentesis(self):
         return str(self.valor)
 
     def numero_operaciones(self):
@@ -53,15 +46,12 @@ class Operacion(AST):
         self.izda = izda
         self.dcha = dcha
 
-    def mostrar(self):
-        return '(' + self.izda.mostrar() + self.op + self.dcha.mostrar() + ')'
-
     def _prioridad(self):
         return self.PRIORIDAD[self.op]
 
-    def mostrar_sin_parentesis(self):
-        izda = self.izda.mostrar_sin_parentesis()
-        dcha = self.dcha.mostrar_sin_parentesis()
+    def mostrar(self):
+        izda = self.izda.mostrar()
+        dcha = self.dcha.mostrar()
         mi_prioridad = self._prioridad()
 
         # hijo izquierdo: solo necesita parentesis si tiene menos prioridad
@@ -108,7 +98,6 @@ if __name__ == "__main__":
 
     # Accedemos al arbol de varias formas mediante funciones miembro
     print('El árbol contiene la expresión:', arbol_final.mostrar())
-    print('Sin paréntesis innecesarios:', arbol_final.mostrar_sin_parentesis())
     print('El árbol contiene en total %d operaciones' % arbol_final.numero_operaciones())
     print('La expresión se evalua como:', arbol_final.interpreta())
 
@@ -129,5 +118,4 @@ if __name__ == "__main__":
         Operacion('+', Numero(2), Operacion('*', Numero(3), Numero(4))),
     ]
     for expr in pruebas:
-        print(f"{expr.mostrar():<16} -> {expr.mostrar_sin_parentesis():<10} "
-              f"= {expr.interpreta()}")
+        print(f"{expr.mostrar():<10} = {expr.interpreta()}")
