@@ -1,220 +1,282 @@
 #!/usr/bin/env python
+"""Analizador léxico carácter a carácter del lenguaje."""
 
-"""Analizador léxico del lenguaje de la práctica."""
-
-from sys import argv
+import argparse
+import sys
+from pathlib import Path
 
 import componentes
 import flujo
 
 
-class Analex:
-    PR = frozenset({
-        "PROGRAMA", "VAR", "ENTERO", "INTEGER", "REAL", "BOOLEANO", "INICIO", "FIN",
+class AnalizadorLexico:
+    """Convierte caracteres fuente en instancias de ``componentes.Token``."""
+
+    PALABRAS_RESERVADAS = frozenset({
+        "PROGRAMA", "VAR", "ENTERO", "REAL", "BOOLEANO", "INICIO", "FIN",
         "SI", "ENTONCES", "SINO", "MIENTRAS", "HACER", "LEE", "ESCRIBE",
         "Y", "O", "NO", "CIERTO", "FALSO",
     })
 
+    # Compatibility with the original skeleton, which exposed ``PR``.
+    PR = PALABRAS_RESERVADAS
+
     def __init__(self, flujo_entrada):
         self.flujo = flujo_entrada
-        self.poserror = 0
-        self.nlinea = self._linea()
+        self.errores = 0
 
     def _linea(self):
-        """Obtiene la línea actual, admitiendo las variantes de ``Flujo``."""
+        """Devuelve la línea actual usando cualquiera de las APIs de Flujo."""
         for nombre in ("GetNumLine", "getNumLinea"):
             metodo = getattr(self.flujo, nombre, None)
             if metodo is not None:
                 return metodo()
-        return self.nlinea
+        raise AttributeError("El flujo no proporciona el numero de linea")
 
-    def _siguiente(self):
+    def _leer(self):
+        """Lee un carácter y avanza en el flujo de entrada."""
         for nombre in ("NewChar", "newChar", "siguiente"):
             metodo = getattr(self.flujo, nombre, None)
             if metodo is not None:
                 return metodo()
-        raise AttributeError("El flujo no proporciona una operación de lectura")
+        raise AttributeError("El flujo no proporciona una operacion de lectura")
 
     def _devolver(self):
+        """Devuelve el último carácter para que otro estado lo procese."""
         for nombre in ("ReturnChar", "returnChar", "devolver"):
             metodo = getattr(self.flujo, nombre, None)
             if metodo is not None:
                 return metodo()
-        raise AttributeError("El flujo no proporciona una operación de devolución")
+        raise AttributeError("El flujo no proporciona una operacion de devolucion")
 
     def _error(self, mensaje, linea):
-        print(f"ERROR LÉXICO Línea {linea} :: {mensaje}")
+        self.errores += 1
+        print(f"ERROR LEXICO (linea {linea}): {mensaje}")
 
-    def TrataNum(self, flujo_entrada, ch, nl=None):
-        """Lee un entero o real comenzando por ``ch``."""
-        if nl is None:
-            nl = self._linea()
-        texto = ch
+    def _saltar_blancos(self):
+        """Ignora espacios; Flujo actualiza la línea al leer '\\n'."""
         while True:
-            siguiente = self._siguiente()
-            if siguiente.isdigit():
-                texto += siguiente
-            else:
-                if siguiente:
-                    self._devolver()
-                break
-
-        es_real = False
-        siguiente = self._siguiente()
-        if siguiente == ".":
-            es_real = True
-            texto += siguiente
-            siguiente = self._siguiente()
-            if not siguiente.isdigit():
-                if siguiente:
-                    self._devolver()
-                self._error(f"Número real incompleto '{texto}'", nl)
-                return None
-            texto += siguiente
-            while True:
-                siguiente = self._siguiente()
-                if siguiente.isdigit():
-                    texto += siguiente
-                else:
-                    if siguiente:
-                        self._devolver()
-                    break
-        elif siguiente:
-            self._devolver()
-
-        return componentes.Numero(float(texto) if es_real else int(texto), nl)
-
-    def TrataIdent(self, flujo_entrada, ch, nl=None):
-        """Lee un identificador o una palabra reservada."""
-        if nl is None:
-            nl = self._linea()
-        texto = ch
-        while True:
-            siguiente = self._siguiente()
-            if siguiente.isalnum() or siguiente == "_":
-                texto += siguiente
-            else:
-                if siguiente:
-                    self._devolver()
-                break
-        if texto in self.PR:
-            return componentes.PR(texto, nl)
-        return componentes.Identif(texto, nl)
-
-    def TrataComent(self, flujo_entrada=None):
-        """Descarta un comentario ``//`` o ``/* ... */``."""
-        siguiente = self._siguiente()
-        if siguiente == "/":
-            while True:
-                ch = self._siguiente()
-                if not ch or ch == "\n":
-                    if ch:
-                        self._devolver()
-                    return
-        if siguiente == "*":
-            anterior = ""
-            while True:
-                ch = self._siguiente()
-                if not ch:
-                    self._error("Comentario sin cerrar", self._linea())
-                    return
-                if anterior == "*" and ch == "/":
-                    return
-                anterior = ch
-        if siguiente:
-            self._devolver()
-
-    def EliminaBlancos(self, flujo_entrada=None):
-        """Consume espacios, tabuladores y saltos de línea."""
-        while True:
-            ch = self._siguiente()
-            if not ch:
+            caracter = self._leer()
+            if not caracter:
                 return
-            if ch in " \t\f\r":
-                continue
-            if ch == "\n":
-                continue
-            if ch:
+            if caracter not in " \t\f\r\n":
                 self._devolver()
-            return
+                return
 
-    def Analiza(self):
+    def _leer_comentario(self):
+        """Consume caracteres después de ``%%`` hasta el salto de línea o EOF."""
         while True:
-            self.EliminaBlancos()
-            nl = self._linea()
-            ch = self._siguiente()
+            caracter = self._leer()
+            if not caracter or caracter == "\n":
+                return
 
-            if not ch:
-                return componentes.EOF(nl)
-            if ch.isdigit():
-                token = self.TrataNum(self.flujo, ch, nl)
-                if token is not None:
-                    return token
+    def _leer_identificador(self, primer_caracter, linea):
+        """Lee una letra seguida de cero o más letras o dígitos."""
+        texto = primer_caracter
+        while True:
+            caracter = self._leer()
+            if caracter and caracter.isalnum():
+                texto += caracter
+            else:
+                if caracter:
+                    self._devolver()
+                break
+
+        if texto in self.PALABRAS_RESERVADAS:
+            return componentes.PR(texto, linea)
+        return componentes.Identif(texto, linea)
+
+    def _leer_numero(self, primer_caracter, linea):
+        """Lee un entero o real con la forma dígitos[.dígitos]."""
+        texto = primer_caracter
+        while True:
+            caracter = self._leer()
+            if caracter and caracter.isdigit():
+                texto += caracter
+            else:
+                if caracter:
+                    self._devolver()
+                break
+
+        caracter = self._leer()
+        if caracter != ".":
+            if caracter:
+                self._devolver()
+            return componentes.Numero(int(texto), linea)
+
+        texto += "."
+        caracter = self._leer()
+        if not caracter or not caracter.isdigit():
+            if caracter:
+                self._devolver()
+            self._error(f"numero real incompleto: {texto}", linea)
+            return None
+
+        texto += caracter
+        while True:
+            caracter = self._leer()
+            if caracter and caracter.isdigit():
+                texto += caracter
+            else:
+                if caracter:
+                    self._devolver()
+                break
+        return componentes.Numero(float(texto), linea)
+
+    def siguiente_componente(self):
+        """Devuelve el siguiente token, ignorando espacios y comentarios ``%%``."""
+        while True:
+            self._saltar_blancos()
+            linea = self._linea()
+            caracter = self._leer()
+
+            if not caracter:
+                return componentes.EOF(linea)
+            if caracter.isalpha():
+                return self._leer_identificador(caracter, linea)
+            if caracter.isdigit():
+                numero = self._leer_numero(caracter, linea)
+                if numero is not None:
+                    return numero
                 continue
-            if ch.isalpha() or ch == "_":
-                return self.TrataIdent(self.flujo, ch, nl)
 
-            if ch == ":":
-                siguiente = self._siguiente()
-                if siguiente == "=":
-                    return componentes.OpAsigna(nl)
-                if siguiente:
-                    self._devolver()
-                return componentes.DosPtos(nl)
-            if ch in "+-":
-                return componentes.OpAdd({"+": "SimSuma", "-": "SimResta"}[ch], nl)
-            if ch in "*/":
-                siguiente = self._siguiente()
-                if ch == "/" and siguiente and siguiente in "/*":
-                    self._devolver()
-                    self.TrataComent(self.flujo)
+            if caracter == "%":
+                siguiente = self._leer()
+                if siguiente == "%":
+                    self._leer_comentario()
                     continue
                 if siguiente:
                     self._devolver()
-                return componentes.OpMult({"*": "SimMult", "/": "SimDiv"}[ch], nl)
-            if ch in "<>":
-                siguiente = self._siguiente()
-                op = ch
+                return componentes.OpMult("SimMod", linea)
+
+            if caracter in "+-":
+                nombres = {"+": "SimSuma", "-": "SimResta"}
+                return componentes.OpAdd(nombres[caracter], linea)
+            if caracter in "*/":
+                nombres = {"*": "SimMult", "/": "SimDiv"}
+                return componentes.OpMult(nombres[caracter], linea)
+
+            if caracter in "<>":
+                siguiente = self._leer()
+                operador = caracter
                 if siguiente and siguiente in "=>":
-                    op += siguiente
+                    operador += siguiente
                 elif siguiente:
                     self._devolver()
                 nombres = {
-                    "=": "SimIgual", "<>": "SimDist", "<": "SimMenor",
-                    "<=": "SimMenIgual", ">": "SimMayor", ">=": "SimMayIgual",
+                    "<": "SimMenor", "<=": "SimMenIgual",
+                    ">": "SimMayor", ">=": "SimMayIgual",
+                    "<>": "SimDist",
                 }
-                return componentes.OpRel(nombres[op], nl)
-            if ch == "=":
-                return componentes.OpRel("SimIgual", nl)
-            puntuacion = {
+                if operador not in nombres:
+                    self._error(
+                        f"operador relacional no válido: {operador!r}",
+                        linea,
+                    )
+                    continue
+                return componentes.OpRel(nombres[operador], linea)
+            if caracter == "=":
+                siguiente = self._leer()
+                if siguiente and siguiente in "<=>":
+                    self._error(
+                        f"operador relacional no válido: {'=' + siguiente!r}",
+                        linea,
+                    )
+                    continue
+                if siguiente:
+                    self._devolver()
+                return componentes.OpRel("SimIgual", linea)
+
+            if caracter == ":":
+                siguiente = self._leer()
+                if siguiente == "=":
+                    return componentes.OpAsigna(linea)
+                if siguiente:
+                    self._devolver()
+                return componentes.DosPtos(linea)
+
+            simbolos = {
                 ";": componentes.PtoComa,
                 ",": componentes.Coma,
-                ":": componentes.DosPtos,
-                "(": componentes.ParentAper,
+                "(": componentes.ParentAp,
                 ")": componentes.ParentCi,
                 ".": componentes.Punto,
             }
-            if ch in puntuacion:
-                return puntuacion[ch](nl)
-            if ch == "#":
-                while True:
-                    siguiente = self._siguiente()
-                    if not siguiente or siguiente == "\n":
-                        if siguiente:
-                            self._devolver()
-                        break
-                continue
+            clase_simbolo = simbolos.get(caracter)
+            if clase_simbolo is not None:
+                return clase_simbolo(linea)
 
-            self._error(f"Caracter '{ch}' invalido", nl)
+            self._error(f"caracter no permitido: {caracter!r}", linea)
+
+    # Nombres utilizados habitualmente por los esqueletos proporcionados.
+    Analiza = siguiente_componente
+    analiza = siguiente_componente
+
+
+# Nombre compatible con el punto de entrada original de la línea de comandos.
+Analex = AnalizadorLexico
+
+
+def _ruta_fichero(argumento):
+    """Resuelve una ruta absoluta o relativa al directorio actual/proyecto."""
+    ruta = Path(argumento).expanduser()
+    if ruta.is_absolute():
+        return ruta.resolve()
+
+    ruta_actual = (Path.cwd() / ruta).resolve()
+    if ruta_actual.exists():
+        return ruta_actual
+
+    return (Path(__file__).resolve().parent / ruta).resolve()
+
+
+def _obtener_argumentos():
+    """Obtiene el fichero fuente desde la línea de comandos o por teclado."""
+    parser = argparse.ArgumentParser(
+        description="Analiza léxicamente un fichero del lenguaje de la práctica."
+    )
+    parser.add_argument(
+        "fichero",
+        nargs="?",
+        help="ruta del fichero fuente; puede ser relativa o absoluta",
+    )
+    argumentos = parser.parse_args()
+
+    nombre = argumentos.fichero
+    if not nombre:
+        nombre = input(
+            "Introduce la ruta del fichero fuente "
+            "(por ejemplo, Prueba1.eje): "
+        ).strip()
+
+    if not nombre:
+        parser.error("debes indicar un fichero fuente")
+
+    return _ruta_fichero(nombre)
 
 
 if __name__ == "__main__":
-    if len(argv) != 2:
-        raise SystemExit(f"Uso: {argv[0]} FICHERO")
-    nombre = argv[1]
-    print(f"PROGRAMA FUENTE {nombre!r}")
-    analex = Analex(flujo.Flujo(nombre))
-    componente = analex.Analiza()
-    while componente.cat != "EOF":
-        print(componente)
-        componente = analex.Analiza()
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
+    fichero = _obtener_argumentos()
+    if not fichero.is_file():
+        raise SystemExit(
+            f"ERROR: no se encontró el fichero fuente:\n{fichero}\n"
+            "Comprueba la ruta e inténtalo de nuevo."
+        )
+
+    try:
+        flujo_entrada = flujo.Flujo(str(fichero))
+    except OSError as error:
+        raise SystemExit(f"ERROR: no se pudo abrir el fichero: {error}") from error
+
+    analizador = AnalizadorLexico(flujo_entrada)
+    print(f"PROGRAMA FUENTE: {fichero}")
+    while True:
+        token = analizador.siguiente_componente()
+        print(token)
+        if isinstance(token, componentes.EOF):
+            break
+    if analizador.errores:
+        print(f"Errores lexicos: {analizador.errores}")

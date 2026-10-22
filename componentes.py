@@ -1,100 +1,132 @@
 #!/usr/bin/env python
+"""Clases de componentes léxicos utilizadas por el analizador."""
 
-"""Categorías léxicas del lenguaje."""
 
+class Token:
+    """Información común compartida por todos los componentes léxicos.
 
-class Componente:
+    Los símbolos simples no muestran ``linea`` en ``__str__`` porque ese es el
+    formato de salida exigido por la práctica. El valor se conserva para que
+    las siguientes fases del compilador puedan usarlo en sus diagnósticos.
+    """
+
     def __init__(self, linea=0):
-        self.cat = self.__class__.__name__
+        self.cat = type(self).__name__
         self.linea = linea
 
     @property
     def nl(self):
-        """Alias compatible con el nombre usado en el enunciado inicial."""
+        """Alias compatible con código que denomina ``nl`` a la línea."""
         return self.linea
 
     def __str__(self):
-        atributos = [f"{k}: {v}" for k, v in self.__dict__.items() if k != "cat"]
-        return f"{self.__class__.__name__} ({', '.join(atributos)})" \
-            if atributos else self.__class__.__name__
+        return self.cat
 
 
-class _Puntuacion(Componente):
+# The old project used Componente.  Keep the alias so existing imports work.
+Componente = Token
+
+
+class _SimpleSymbol(Token):
+    """Token de puntuación u operador sin atributos impresos."""
+
+    def __str__(self):
+        return self.cat
+
+
+class PtoComa(_SimpleSymbol):
     pass
 
 
-class PtoComa(_Puntuacion):
+class DosPtos(_SimpleSymbol):
     pass
 
 
-class Coma(_Puntuacion):
+class Coma(_SimpleSymbol):
     pass
 
 
-class DosPtos(_Puntuacion):
+class ParentAp(_SimpleSymbol):
     pass
 
 
-class ParentAper(_Puntuacion):
+# Compatibility with the previous misspelled/expanded name.
+ParentAper = ParentAp
+
+
+class ParentCi(_SimpleSymbol):
     pass
 
 
-class ParentCi(_Puntuacion):
+class Punto(_SimpleSymbol):
     pass
 
 
-class Punto(_Puntuacion):
+class OpAsigna(_SimpleSymbol):
     pass
 
 
-class OpPunt(_Puntuacion):
-    """Compatibilidad para signos de puntuación no especializados."""
-
-    def __init__(self, op, linea=0):
-        super().__init__(linea)
-        self.valor = op
-
-
-class OpAsigna(Componente):
+class OpPunt(_SimpleSymbol):
     pass
 
 
-class OpAdd(Componente):
-    def __init__(self, op, linea=0):
-        self.valor = op
-        super().__init__(linea)
-
-
-class OpMult(Componente):
-    def __init__(self, op, linea=0):
-        self.valor = op
-        super().__init__(linea)
-
-
-class Numero(Componente):
+class PR(Token):
     def __init__(self, valor, linea=0):
-        self.valor = valor
         super().__init__(linea)
+        self.valor = valor
+
+    def __str__(self):
+        return f"PR (valor: {self.valor}, linea: {self.linea})"
+
+
+class Identif(Token):
+    def __init__(self, valor, linea=0):
+        super().__init__(linea)
+        self.valor = valor
+
+    def __str__(self):
+        return f"Identif (valor: {self.valor}, linea: {self.linea})"
+
+
+class Numero(Token):
+    def __init__(self, valor, linea=0):
+        super().__init__(linea)
+        self.valor = valor
         self.tipo = type(valor)
 
-
-class Identif(Componente):
-    def __init__(self, valor, linea=0):
-        self.valor = valor
-        super().__init__(linea)
-
-
-class PR(Componente):
-    def __init__(self, valor, linea=0):
-        self.valor = valor
-        super().__init__(linea)
+    def __str__(self):
+        return (
+            f"Numero (valor: {self.valor}, linea: {self.linea}, "
+            f"tipo: {self.tipo})"
+        )
 
 
-class OpRel(Componente):
+class OpRel(Token):
     def __init__(self, op, linea=0):
-        self.valor = op
         super().__init__(linea)
+        self.valor = op
+
+    def __str__(self):
+        return f"OpRel (valor: {self.valor}, linea: {self.linea})"
 
 
-class EOF(Componente):
+class OpAdd(Token):
+    def __init__(self, op, linea=0):
+        super().__init__(linea)
+        self.valor = op
+
+    def __str__(self):
+        return f"OpAdd (valor: {self.valor}, linea: {self.linea})"
+
+
+class OpMult(Token):
+    def __init__(self, op, linea=0):
+        super().__init__(linea)
+        self.valor = op
+
+    def __str__(self):
+        return f"OpMult (valor: {self.valor}, linea: {self.linea})"
+
+
+class EOF(_SimpleSymbol):
     pass
