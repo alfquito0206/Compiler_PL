@@ -280,3 +280,4 @@ if __name__ == "__main__":
             break
     if analizador.errores:
         print(f"Errores lexicos: {analizador.errores}")
+        
