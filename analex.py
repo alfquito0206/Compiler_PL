@@ -256,8 +256,9 @@ def _obtener_argumentos():
 
 
 if __name__ == "__main__":
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        reconfigure(encoding="utf-8")
 
     fichero = _obtener_argumentos()
     if not fichero.is_file():
@@ -280,3 +281,4 @@ if __name__ == "__main__":
             break
     if analizador.errores:
         print(f"Errores lexicos: {analizador.errores}")
+        
