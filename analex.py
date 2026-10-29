@@ -187,7 +187,7 @@ class AnalizadorLexico:
                     self._devolver()
                 return componentes.OpRel("SimIgual", linea)
 
-            if caracter == ":":
+            if caracter == ":": #asiganador := walrus operator
                 siguiente = self._leer()
                 if siguiente == "=":
                     return componentes.OpAsigna(linea)
